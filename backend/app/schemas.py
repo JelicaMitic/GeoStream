@@ -1,5 +1,6 @@
 from pydantic import BaseModel, field_validator
 from datetime import datetime
+from typing import Optional
 
 class LocationUpdate(BaseModel):
     driver_id: int
@@ -32,6 +33,27 @@ class LocationResponse(BaseModel):
     latitude: float
     longitude: float
     timestamp: datetime
+
+    class Config:
+        from_attributes = True
+
+class RideRequest(BaseModel):
+    passenger_name: str
+    pickup_lat: float
+    pickup_lon: float
+
+class RideResponse(BaseModel):
+    id: int
+    driver_id: int
+    passenger_name: str
+    status: str
+    pickup_lat: float
+    pickup_lon: float
+    dropoff_lat: Optional[float]
+    dropoff_lon: Optional[float]
+    requested_at: datetime
+    started_at: Optional[datetime]
+    completed_at: Optional[datetime]
 
     class Config:
         from_attributes = True
