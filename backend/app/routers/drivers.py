@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from app.database import get_db
 from app import models, schemas
 from app.schemas import LocationUpdate
 from app.logger import logger
-import math
 
 router = APIRouter(prefix="/drivers", tags=["drivers"])
 
@@ -19,12 +19,15 @@ def update_location(data: LocationUpdate, db: Session = Depends(get_db)):
 
         driver.status = "active"
 
-        event = models.LocationEvent(
-            driver_id=data.driver_id,
-            latitude=data.latitude,
-            longitude=data.longitude
-        )
-        db.add(event)
+        db.execute(text("""
+            INSERT INTO location_events (driver_id, latitude, longitude, timestamp, geo_location)
+            VALUES (:driver_id, :latitude, :longitude, NOW(), 
+                    ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326))
+        """), {
+            "driver_id": data.driver_id,
+            "latitude": data.latitude,
+            "longitude": data.longitude
+        })
         db.commit()
 
         logger.info(f"Vozač {data.driver_id} → lat: {data.latitude}, lon: {data.longitude}")
@@ -34,6 +37,45 @@ def update_location(data: LocationUpdate, db: Session = Depends(get_db)):
         raise
     except Exception as e:
         logger.error(f"Greška pri upisu lokacije: {e}")
+        raise HTTPException(status_code=500, detail="Interna greška servera")
+
+@router.get("/nearest")
+def get_nearest_driver(lat: float, lon: float, db: Session = Depends(get_db)):
+    try:
+        result = db.execute(text("""
+            SELECT 
+                d.id,
+                d.name,
+                ST_Distance(
+                    l.geo_location::geography,
+                    ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography
+                ) AS distance_meters
+            FROM drivers d
+            JOIN location_events l ON l.driver_id = d.id
+            WHERE d.status = 'active'
+            AND l.timestamp = (
+                SELECT MAX(timestamp) 
+                FROM location_events 
+                WHERE driver_id = d.id
+            )
+            ORDER BY distance_meters
+            LIMIT 1
+        """), {"lat": lat, "lon": lon}).fetchone()
+
+        if not result:
+            raise HTTPException(status_code=404, detail="Nema aktivnih vozača")
+
+        logger.info(f"Najbliži vozač: {result.id}, rastojanje: {result.distance_meters:.0f}m")
+        return {
+            "driver_id": result.id,
+            "driver_name": result.name,
+            "distance_km": round(result.distance_meters / 1000, 2)
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Greška pri traženju najbližeg vozača: {e}")
         raise HTTPException(status_code=500, detail="Interna greška servera")
 
 @router.get("/active")
@@ -61,56 +103,4 @@ def get_driver_history(driver_id: int, db: Session = Depends(get_db)):
         raise
     except Exception as e:
         logger.error(f"Greška pri dohvatanju istorije: {e}")
-        raise HTTPException(status_code=500, detail="Interna greška servera")
-
-def haversine(lat1, lon1, lat2, lon2):
-    R = 6371  # poluprečnik Zemlje u km
-    dlat = math.radians(lat2 - lat1)
-    dlon = math.radians(lon2 - lon1)
-    a = math.sin(dlat/2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon/2)**2
-    return R * 2 * math.asin(math.sqrt(a))
-
-@router.get("/nearest")
-def get_nearest_driver(lat: float, lon: float, db: Session = Depends(get_db)):
-    try:
-        drivers = db.query(models.Driver).filter(models.Driver.status == "active").all()
-
-        if not drivers:
-            logger.warning("Nema aktivnih vozača")
-            raise HTTPException(status_code=404, detail="Nema aktivnih vozača")
-
-        nearest = None
-        min_distance = float("inf")
-
-        for driver in drivers:
-            last_location = (
-                db.query(models.LocationEvent)
-                .filter(models.LocationEvent.driver_id == driver.id)
-                .order_by(models.LocationEvent.timestamp.desc())
-                .first()
-            )
-
-            if not last_location:
-                continue
-
-            distance = haversine(lat, lon, last_location.latitude, last_location.longitude)
-
-            if distance < min_distance:
-                min_distance = distance
-                nearest = driver
-
-        if not nearest:
-            raise HTTPException(status_code=404, detail="Nema vozača sa poznatom lokacijom")
-
-        logger.info(f"Najbliži vozač: {nearest.id}, rastojanje: {min_distance:.2f} km")
-        return {
-            "driver_id": nearest.id,
-            "driver_name": nearest.name,
-            "distance_km": round(min_distance, 2)
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Greška pri traženju najbližeg vozača: {e}")
         raise HTTPException(status_code=500, detail="Interna greška servera")
