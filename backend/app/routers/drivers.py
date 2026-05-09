@@ -5,11 +5,12 @@ from app.database import get_db
 from app import models, schemas
 from app.schemas import LocationUpdate
 from app.logger import logger
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 router = APIRouter(prefix="/drivers", tags=["drivers"])
 
 @router.post("/location")
-def update_location(data: LocationUpdate, db: Session = Depends(get_db)):
+async def update_location(data: LocationUpdate, request: Request, db: Session = Depends(get_db)):
     try:
         driver = db.query(models.Driver).filter(models.Driver.id == data.driver_id).first()
 
@@ -21,7 +22,7 @@ def update_location(data: LocationUpdate, db: Session = Depends(get_db)):
 
         db.execute(text("""
             INSERT INTO location_events (driver_id, latitude, longitude, timestamp, geo_location)
-            VALUES (:driver_id, :latitude, :longitude, NOW(), 
+            VALUES (:driver_id, :latitude, :longitude, NOW(),
                     ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326))
         """), {
             "driver_id": data.driver_id,
@@ -29,6 +30,13 @@ def update_location(data: LocationUpdate, db: Session = Depends(get_db)):
             "longitude": data.longitude
         })
         db.commit()
+
+        await request.app.state.manager.broadcast({
+            "driver_id": data.driver_id,
+            "driver_name": driver.name,
+            "latitude": data.latitude,
+            "longitude": data.longitude
+        })
 
         logger.info(f"Vozač {data.driver_id} → lat: {data.latitude}, lon: {data.longitude}")
         return {"message": "Lokacija upisana"}
@@ -97,8 +105,16 @@ def get_driver_history(driver_id: int, db: Session = Depends(get_db)):
             logger.warning(f"Istorija: vozač {driver_id} nije pronađen")
             raise HTTPException(status_code=404, detail="Vozač nije pronađen")
 
-        logger.info(f"Istorija za vozača {driver_id}: {len(driver.locations)} lokacija")
-        return driver.locations
+        locations = (
+            db.query(models.LocationEvent)
+            .filter(models.LocationEvent.driver_id == driver_id)
+            .order_by(models.LocationEvent.timestamp.desc())
+            .all()
+        )
+
+        logger.info(f"Istorija za vozača {driver_id}: {len(locations)} lokacija")
+        return locations
+
     except HTTPException:
         raise
     except Exception as e:
