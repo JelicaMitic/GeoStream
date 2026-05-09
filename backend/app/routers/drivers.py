@@ -6,6 +6,7 @@ from app import models, schemas
 from app.schemas import LocationUpdate
 from app.logger import logger
 from fastapi import APIRouter, Depends, HTTPException, Request
+from app.kafka_producer import send_location_event
 
 router = APIRouter(prefix="/drivers", tags=["drivers"])
 
@@ -30,7 +31,9 @@ async def update_location(data: LocationUpdate, request: Request, db: Session = 
             "longitude": data.longitude
         })
         db.commit()
-
+        
+        send_location_event(data.driver_id, data.latitude, data.longitude, driver.name)
+        
         await request.app.state.manager.broadcast({
             "driver_id": data.driver_id,
             "driver_name": driver.name,
