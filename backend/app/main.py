@@ -1,4 +1,5 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from app.routers import drivers, rides
 from app.database import engine
 from app import models
@@ -8,6 +9,14 @@ from typing import List
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="GeoStream API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class ConnectionManager:
     def __init__(self):
@@ -20,7 +29,7 @@ class ConnectionManager:
 
     def disconnect(self, websocket: WebSocket):
         self.active_connections.remove(websocket)
-        logger.info(f"Klijent se diskonektovao, ukupno: {len(self.active_connections)}")
+        logger.info(f"Klijent se iskonektovao, ukupno: {len(self.active_connections)}")
 
     async def broadcast(self, message: dict):
         for connection in self.active_connections:
