@@ -24,6 +24,6 @@ def send_location_event(driver_id: int, latitude: float, longitude: float, drive
         }
         producer.send("driver-locations", value=event)
         producer.flush()
-        logger.info(f"Kafka event poslan: vozač {driver_id} → {latitude}, {longitude}")
+        logger.info(f"Kafka event poslat: vozač {driver_id} → {latitude}, {longitude}")
     except Exception as e:
         logger.warning(f"Kafka nije dostupna, event preskočen: {e}")
