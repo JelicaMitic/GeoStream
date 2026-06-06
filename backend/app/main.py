@@ -1,14 +1,32 @@
+from contextlib import asynccontextmanager
+import asyncio
+import threading
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import drivers, rides
 from app.database import engine
 from app import models
 from app.logger import logger
+from app.kafka_consumer import start_consumer_thread
 from typing import List
 
 models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="GeoStream API")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    loop = asyncio.get_event_loop()
+    thread = threading.Thread(
+        target=start_consumer_thread,
+        args=(loop, app.state.manager),
+        daemon=True,
+    )
+    thread.start()
+    logger.info("Kafka consumer thread pokrenut")
+    yield
+
+
+app = FastAPI(title="GeoStream API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

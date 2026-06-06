@@ -13,9 +13,12 @@ L.Icon.Default.mergeOptions({
 function App() {
   const [drivers, setDrivers] = useState({});
   const ws = useRef(null);
+  const port = new URLSearchParams(window.location.search).get("port") || "8000";
 
   const connect = useCallback(() => {
-    ws.current = new WebSocket("ws://127.0.0.1:8000/ws");
+    const params = new URLSearchParams(window.location.search);
+    const port = params.get("port") || "8000";
+    ws.current = new WebSocket(`ws://127.0.0.1:${port}/ws`);
 
     ws.current.onopen = () => console.log("WebSocket povezan!");
 
@@ -51,7 +54,14 @@ function App() {
   }, [connect]);
 
   return (
-    <div style={{ height: "100vh", width: "100vw" }}>
+    <div style={{ height: "100vh", width: "100vw", position: "relative" }}>
+      <div style={{
+        position: "absolute", top: 10, left: "50%", transform: "translateX(-50%)",
+        zIndex: 1000, background: "rgba(0,0,0,0.7)", color: "#fff",
+        padding: "6px 14px", borderRadius: 6, fontSize: 13, pointerEvents: "none"
+      }}>
+        Backend: <strong>:{port}</strong>
+      </div>
       <MapContainer
         center={[44.8176, 20.4569]}
         zoom={13}
