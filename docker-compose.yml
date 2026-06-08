@@ -21,6 +21,17 @@ services:
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:9093
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
+  postgres_geostream:
+    image: postgis/postgis:15-3.3
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: jelica22
+      POSTGRES_DB: geostream
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_geostream_data:/var/lib/postgresql/data
+
   postgres_airflow:
     image: postgres:15
     environment:
@@ -29,6 +40,23 @@ services:
       POSTGRES_DB: airflow
     ports:
       - "5433:5432"
+
+  fastapi:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      DB_HOST: postgres_geostream
+      DB_PORT: 5432
+      DB_NAME: geostream
+      DB_USER: postgres
+      DB_PASSWORD: jelica22
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      - kafka
+      - postgres_geostream
+    volumes:
+      - ./backend:/app
 
   airflow-init:
     image: apache/airflow:2.8.0
@@ -54,11 +82,12 @@ services:
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres_airflow:5432/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       AIRFLOW__WEBSERVER__SECRET_KEY: "geostream-secret-key"
-      GEOSTREAM_DB_HOST: host.docker.internal
+      GEOSTREAM_DB_HOST: postgres_geostream
       GEOSTREAM_DB_PORT: 5432
       GEOSTREAM_DB_NAME: geostream
       GEOSTREAM_DB_USER: postgres
       GEOSTREAM_DB_PASSWORD: jelica22
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       _PIP_ADDITIONAL_REQUIREMENTS: "kafka-python"
     volumes:
       - ./airflow/dags:/opt/airflow/dags
@@ -74,12 +103,16 @@ services:
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres_airflow:5432/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       AIRFLOW__WEBSERVER__SECRET_KEY: "geostream-secret-key"
-      GEOSTREAM_DB_HOST: host.docker.internal
+      GEOSTREAM_DB_HOST: postgres_geostream
       GEOSTREAM_DB_PORT: 5432
       GEOSTREAM_DB_NAME: geostream
       GEOSTREAM_DB_USER: postgres
       GEOSTREAM_DB_PASSWORD: jelica22
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       _PIP_ADDITIONAL_REQUIREMENTS: "kafka-python"
     volumes:
       - ./airflow/dags:/opt/airflow/dags
     command: airflow scheduler
+
+volumes:
+  postgres_geostream_data:
