@@ -7,7 +7,7 @@ from app.logger import logger
 
 
 def start_consumer_thread(loop, manager):
-    bootstrap = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+    bootstrap = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9093")
     # Unique group ID per instance so every instance receives every message.
     # Without this, Kafka would load-balance messages across instances in the
     # same group, meaning only one instance would broadcast each event.

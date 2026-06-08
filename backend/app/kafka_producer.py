@@ -8,7 +8,7 @@ _producer = None
 def get_producer():
     global _producer
     if _producer is None:
-        bootstrap = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+        bootstrap = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9093")
         _producer = KafkaProducer(
             bootstrap_servers=bootstrap,
             value_serializer=lambda v: json.dumps(v).encode("utf-8")
