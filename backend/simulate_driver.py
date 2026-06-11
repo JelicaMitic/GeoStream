@@ -2,13 +2,25 @@ import requests
 import time
 import random
 import argparse
+import os
 
-BASE_URL = "http://127.0.0.1:8000"
+BASE_URL = os.getenv("FASTAPI_URL", "http://127.0.0.1:8000")
 
 def simulate(driver_id: int, start_lat: float, start_lon: float):
     lat = start_lat
     lon = start_lon
-    print(f"Pokrećem simulaciju za vozača {driver_id}...")
+    print(f"Pokrećem simulaciju za vozača {driver_id} → {BASE_URL}")
+
+    # Sačekaj da FastAPI bude spreman
+    while True:
+        try:
+            r = requests.get(f"{BASE_URL}/", timeout=3)
+            if r.status_code == 200:
+                print("FastAPI je spreman, šaljem lokacije...")
+                break
+        except Exception:
+            print("Čekam FastAPI...")
+            time.sleep(3)
 
     while True:
         lat += random.uniform(-0.001, 0.001)

@@ -58,6 +58,30 @@ services:
     volumes:
       - ./backend:/app
 
+  simulator-1:
+    build: ./backend
+    command: python simulate_driver.py --driver 1 --lat 44.8100 --lon 20.4700
+    environment:
+      FASTAPI_URL: http://fastapi:8000
+    depends_on:
+      - fastapi
+
+  simulator-2:
+    build: ./backend
+    command: python simulate_driver.py --driver 2 --lat 44.8200 --lon 20.4800
+    environment:
+      FASTAPI_URL: http://fastapi:8000
+    depends_on:
+      - fastapi
+
+  simulator-3:
+    build: ./backend
+    command: python simulate_driver.py --driver 3 --lat 44.8300 --lon 20.4600
+    environment:
+      FASTAPI_URL: http://fastapi:8000
+    depends_on:
+      - fastapi
+
   airflow-init:
     image: apache/airflow:2.8.0
     depends_on:
